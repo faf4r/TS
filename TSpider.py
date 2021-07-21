@@ -33,9 +33,9 @@ class TS:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)'
         }
+        self.target = None  # m3u8里面的地址完整度问题，默认不完整，如果完整，就要修改
         self.domain, self.m3u8_url, self.title = self.m3u8()
         self.key_url = self.key()
-        os.chdir(self.title)  # 注意放这里会将工作目录改变到ts流文件处
         self.log = []
 
     def m3u8(self):
@@ -53,11 +53,16 @@ class TS:
         # print(m3u8_url)
         m3u8_url = m3u8_url.replace('\\', '')
         # print(m3u8_url)
-        r = requests.get(m3u8_url, self.headers)
+        r = requests.get(url=m3u8_url, headers=self.headers)
         # print(r.text)
         domain = m3u8_url.strip('index.m3u8')
         target = r.text.split('\n')[2]
-        m3u8_url = domain + target
+        if len(target.split('/')) == 6:
+            m3u8_url = 'https://vip5.3sybf.com' + target
+            self.target = target.replace('index.m3u8', '')
+        else:
+            m3u8_url = domain + target
+        # print(domain, target)
         print('m3u8 url:', m3u8_url)
         domain = m3u8_url.strip('index.m3u8')
         return domain, m3u8_url, title
@@ -67,7 +72,7 @@ class TS:
         初始化过程中解析key的地址
         :return: 完整的key URL
         """
-        r = requests.get(self.m3u8_url, self.headers)
+        r = requests.get(url=self.m3u8_url, headers=self.headers)
         # print(r.text)
         key_url = re.findall('#EXT-X-KEY:METHOD=.*?,URI="(.*?)"', r.text)[0]
         return self.domain + key_url
@@ -83,12 +88,15 @@ class TS:
         os.makedirs(self.title, exist_ok=True)
         m3u8 = requests.get(self.m3u8_url, self.headers)
         data = m3u8.text.replace('.key', '.m3u8')
-        with open('./'+self.title+'/index.m3u8', 'w') as f:
+        if self.target:
+            data = data.replace(self.target, '')
+        with open('./'+self.title+'/index.m3u8', mode='w') as f:
             f.write(data)
         key = requests.get(self.key_url, self.headers)
-        with open('./'+self.title+'/key.m3u8', 'w') as f:
+        with open('./'+self.title+'/key.m3u8', mode='w') as f:
             f.write(key.text)
         print('Initialized\n', '-'*20)
+        os.chdir(self.title)  # 注意放这里会将工作目录改变到ts流文件处
 
     def get_all_url(self):
         """
